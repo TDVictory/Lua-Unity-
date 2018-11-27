@@ -127,8 +127,157 @@ Lua内置了一些常用的函数来协助开发。
 - math.sqrt（平方根）
 #### 字符串处理相关函数
 同上，也是介绍一些简单的函数
-- ..（字符串相加，还我C#的+）
+- ..（字符串相加，C#的+）
 - tostring(),tonumber()（数字与字符串的转换）
 - string.upper,string.lower（大写化，小写化）
+
+### Table表
+在lua内table就像是C#中的list和dictionary的组合。当没有设置索引关键字时，table表则是默认**从1开始**填充（在lua里所有索引都是从1开始而非从0开始）。
+```
+mytable = {10,20,30,40}
+```
+
+在上述情况下mytable[1]的值为10。
+
+我们同样可以通过设置索引关键字来填充table表。索引关键字分为number类型和string类型。number类只能通过table[number]的方式来索引，而strin类型则可以使用table[string]和table.string两种方式来索引。
+```
+mytable = {str = 10}
+print(mytabel[str],mytable.str)
+```
+
+#### Table表的相关函数
+table表同样提供多种函数，方便我们操作表内的所有存储的值。
+- table.concat (table [sep[start[end]]]): 该方法将数组从start位置到end位置的所有元素, 元素间以指定的分隔符(sep)隔开的方式连接成一个字符串。但是该方法连接的字符只能是以number方式（这里必须用整型的）定义。
+- table.insert (table, [pos], value) 在table的数组部分指定位置(pos)插入值为value的一个元素. pos参数可选, 默认则为数组部分末尾.
+- table.remove (table [pos])返回table数组部分位于pos位置的元素. 其后的元素会被前移. pos参数可选, 默认为table长度, 即从最后一个元素删起。
+- table.sort (table [comp])对给定的table进行升序排序。
+
+## xLua
+xLua是一种C#与Lua之间转换的插件，因为C#是编译型语言，它在对应平台上运行时已经编译完成，后续的修改将无法正常运行。所以我们采用lua这种解释性语言来完成代码逻辑编写。从而达到逻辑的热更新。
+
+### Lua文件加载
+#### 一、执行字符串
+最基本是直接用LuaEnv.DoString执行一个字符串，当然，字符串得符合Lua语法
+```
+LuaEnv luaenv = new LuaEnv();
+luaenv.DoString("print('hello world')");
+```
+
+但这种方式并不建议，更建议下面介绍这种方法。
+#### 二、加载Lua文件
+用lua的require函数即可
+```
+LuaEnv luaenv = new LuaEnv();
+luaenv.DoString("require 'byfile'");
+```
+
+require实际上是调一个个的loader去加载，有一个成功就不再往下尝试，全失败则报文件找不到。
+目前xLua除了原生的loader外，还添加了从Resource加载的loader，需要注意的是因为Resource只支持有限的后缀，放Resources下的lua文件得加上txt后缀.u也即如果你不使用自定义的Loader，直接使用require的方式来寻找byfile，那么byfile文件必须放置在Resources文件夹内，且后缀为.lua.txt。
+
+建议的加载Lua脚本方式是：整个程序就一个DoString("require 'main'")，然后在main.lua加载其它脚本（类似lua脚本的命令行执行：lua main.lua）。
+有童鞋会问：要是我的Lua文件是下载回来的，或者某个自定义的文件格式里头解压出来，或者需要解密等等，怎么办？问得好，xLua的自定义Loader可以满足这些需求。
+#### 三、自定义Loader
+在xLua加自定义loader是很简单的，只涉及到一个接口：
+
+public delegate byte[] CustomLoader(ref string filepath);
+
+public void LuaEnv.AddLoader(CustomLoader loader)
+
+通过AddLoader可以注册个回调，该回调参数是字符串，lua代码里头调用require时，参数将会透传给回调，回调中就可以根据这个参数去加载指定文件，如果需要支持调试，需要把filepath修改为真实路径传出。该回调返回值是一个byte数组，如果为空表示该loader找不到，否则则为lua文件的内容。
+
+我们首先需要通过AddLoader来添加自定义的Loader
+```
+LuaEnv luaEnv = new LuaEnv();
+luaEnv.AddLoader(MyLoader);
+luaEnv.DoString("require 'test'");
+```
+
+然后再在自定义的Loader中设置新的读取方式，下例为读取StreamingAssets中的lua脚本。
+```
+byte[] MyLoader(ref string Path)
+{
+	string LoadPath = Application.streamingAssetsPath + "/" + Path + ".lua.txt";
+	return System.Text.Encoding.UTF8.GetBytes(File.ReadAllText(LoadPath));
+}
+```
+
+有了这个就简单了，用IIPS的IFS？没问题。写个loader调用IIPS的接口读文件内容即可。文件已经加密？没问题，自己写loader读取文件解密后返回即可。。。
+
+### C#访问Lua
+我们可以通过C#脚本来访问lua的数据结构。
+#### 一、获取一个全局基本数据类型
+访问LuaEnv.Global就可以了，上面有个模版Get方法，可指定返回的类型。
+```
+int luaA = luaenv.Global.Get<int>("a");
+string luaB = luaenv.Global.Get<string>("b");
+bool luaC = luaenv.Global.Get<bool>("c");
+```
+#### 二、访问一个全局的table
+lua内的table和普通的数据类型不一样，C#中没有table这个数据类型，所以我们需要指定映射到新的结构上来。
+
+1、映射到普通class或struct
+
+定义一个class，有对应于table的字段的public属性，而且有无参数构造函数即可，比如对于{f1 = "Name", f2 = 100}可以定义一个包含public string f1;public int f2;的class。
+
+这种方式下xLua会帮你new一个实例，并把对应的字段赋值过去。table的属性可以多于或者少于class的属性。可以嵌套其它复杂类型。
+```
+person = {name = "TD", age = 24}
+```
+
+```
+class Person
+{
+	public string name;
+	public int age;
+}
+
+Person person = luaEnv.Global.Get<Person>("person");
+```
+
+当创建class时，需要获取的参数名称必须匹配，如果定义的不是name和age，而是其他名称，则无法获取到对应的值。
+
+另外要注意的是，这个过程是值拷贝，如果class比较复杂，整体代价会比较大。而且修改class的字段值不会同步到table，反过来也不会。
+
+2、映射到一个interface
+这种方式依赖于生成代码（如果没生成代码会抛InvalidCastException异常），代码生成器会生成这个interface的实例，如果get一个属性，生成代码会get对应的table字段，如果set属性也会设置对应的字段。甚至可以通过interface的方法访问lua的函数。
+```
+[CSharpCallLua]
+interface IPerson
+{
+	string name { get; set; }
+	int age { get; set; }
+}
+
+IPerson person = luaEnv.Global.Get<IPerson>("person");
+```
+
+使用接口的方式和定义类很接近，都是定义需要获取的数据类型，然后通过Global.Get来获取。注意接口需要定义为**CSharpCallLua**。
+
+3、更轻量级的by value方式：映射到Dictionary<>，List<>
+
+当我们使用Dictionary时，可以映射到table中所有具有key值的参数，使用List时，可以映射到table中所有不具有key值的参数
+```
+person = {name = "TD", age = 24, 1, 2, 3, 1.1, "Me"}
+```
+
+我们在lua中定义了一个person的table。然后分别用Dictionary<> 和 List<>来获取。
+```
+List<object> personList = luaEnv.Global.Get<List<object>>("person");
+Dictionary<string,object> personDic = luaEnv.Global.Get<Dictionary<string,object>>("person");
+foreach (var item in personList)
+{
+    Debug.Log(item);
+}
+
+foreach (var item in personDic.Keys)
+{
+    Debug.Log(personDic[item]);
+}
+```
+
+最后我们发现List部分能获取到1, 2, 3, 1.1, Me。而Dictionary能获取到TD，24。
+
+4、另外一种by ref方式：映射到LuaTable类
+这种方式好处是不需要生成代码，但也有一些问题，比如慢，比方式2要慢一个数量级，比如没有类型检查。
 
 
