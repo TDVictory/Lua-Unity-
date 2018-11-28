@@ -288,9 +288,23 @@ xLua中设置了LuaTable类，可以全部获取到Table中所有的参数，这
 
 1、映射到delegate（委托）
 
-这种是建议的方式，性能好很多，而且类型安全。缺点是要生成代码（如果没生成代码会抛InvalidCastException异常）。那delegate要怎样声明呢？
+这种是建议的方式，性能好很多，而且类型安全。缺点是要生成代码（如果没生成代码会抛InvalidCastException异常）。那delegate要怎样声明呢？对于function的每个参数就声明一个输入类型的参数。
+```
+function add()
+	print("add")
+end
+```
 
-对于function的每个参数就声明一个输入类型的参数。多返回值要怎么处理？从左往右映射到c#的输出参数，输出参数包括返回值，out参数，ref参数。参数、返回值类型支持哪些呢？都支持，各种复杂类型，out，ref修饰的，甚至可以返回另外一个delegate。delegate的使用就更简单了，直接像个函数那样用就可以了。
+在lua中我们声明一个没有返回值的函数add，在C#中我们通过定义delegate来获取这个function。如果函数有返回值则定义时给出返回值类型替换void即可。
+```
+delegate void Add();
+...
+Add add = luaEnv.Global.Get<Add>("add");
+```
+
+多返回值要怎么处理？从左往右映射到c#的输出参数，输出参数包括返回值，out参数，ref参数。参数、返回值类型支持哪些呢？都支持，各种复杂类型，out，ref修饰的，甚至可以返回另外一个delegate。delegate的使用就更简单了，直接像个函数那样用就可以了。
+
+
 
 2、映射到LuaFunction
 
