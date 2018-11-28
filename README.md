@@ -278,6 +278,31 @@ foreach (var item in personDic.Keys)
 最后我们发现List部分能获取到1, 2, 3, 1.1, Me。而Dictionary能获取到TD，24。
 
 4、另外一种by ref方式：映射到LuaTable类
-这种方式好处是不需要生成代码，但也有一些问题，比如慢，比方式2要慢一个数量级，比如没有类型检查。
+
+xLua中设置了LuaTable类，可以全部获取到Table中所有的参数，这种方式好处是不需要生成代码，但也有一些问题，比如慢，比方式2要慢一个数量级，比如没有类型检查。
+
+总的来说推荐使用接口，也就是第二种方法来获取Table数据。
+
+#### 三、访问一个全局的function
+仍然是用Get方法，不同的是类型映射。
+
+1、映射到delegate（委托）
+
+这种是建议的方式，性能好很多，而且类型安全。缺点是要生成代码（如果没生成代码会抛InvalidCastException异常）。那delegate要怎样声明呢？
+
+对于function的每个参数就声明一个输入类型的参数。多返回值要怎么处理？从左往右映射到c#的输出参数，输出参数包括返回值，out参数，ref参数。参数、返回值类型支持哪些呢？都支持，各种复杂类型，out，ref修饰的，甚至可以返回另外一个delegate。delegate的使用就更简单了，直接像个函数那样用就可以了。
+
+2、映射到LuaFunction
+
+这种方式的优缺点刚好和第一种相反。
+
+使用也简单，LuaFunction上有个变参的Call函数，可以传任意类型，任意个数的参数，返回值是object的数组，对应于lua的多返回值。
+
+#### 四、使用建议
+1、访问lua全局数据，特别是table以及function，代价比较大，建议尽量少做，比如在初始化时把要调用的lua function获取一次（映射到delegate）后，保存下来，后续直接调用该delegate即可。table也类似。
+
+2、如果lua测的实现的部分都以delegate和interface的方式提供，使用方可以完全和xLua解耦：由一个专门的模块负责xlua的初始化以及delegate、interface的映射，然后把这些delegate和interface设置到要用到它们的地方。
+
+
 
 
