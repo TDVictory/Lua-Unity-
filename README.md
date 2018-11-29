@@ -317,6 +317,52 @@ Add add = luaEnv.Global.Get<Add>("add");
 
 2、如果lua测的实现的部分都以delegate和interface的方式提供，使用方可以完全和xLua解耦：由一个专门的模块负责xlua的初始化以及delegate、interface的映射，然后把这些delegate和interface设置到要用到它们的地方。
 
+### Lua调用C#
+#### new C#对象
+
+你在C#这样new一个对象： 
+```
+var newGameObj = new UnityEngine.GameObject();
+```
+
+对应到Lua是这样： 
+```
+local newGameObj = CS.UnityEngine.GameObject()
+```
+
+二者定义方式基本类似，除了：
+1、lua里头没有new关键字；
+
+2、所有C#相关的都放到CS下，包括构造函数，静态成员属性、方法；
+
+如果有多个构造函数呢？放心，xlua支持重载，比如你要调用GameObject的带一个string参数的构造函数，这么写：
+```
+local newGameObj2 = CS.UnityEngine.GameObject('helloworld')
+```
+
+#### 访问C#静态属性，方法
+读静态属性
+```
+local time = CS.UnityEngine.Time.deltaTime
+```
+
+写静态属性
+```
+CS.UnityEngine.Time.timeScale = 0.5
+```
+
+调用静态方法
+```
+local camera = CS.UnityEngine.GameObject.Find("Main Camera")
+camera.name = "Lua Camera"
+```
+
+小技巧：如果需要经常访问的类，可以先用局部变量引用后访问，除了减少敲代码的时间，还能提高性能：
+```
+local GameObject = CS.UnityEngine.GameObject
+GameObject.Find('helloworld')
+```
+
 
 
 
