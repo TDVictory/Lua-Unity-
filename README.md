@@ -3,6 +3,8 @@
 参考[Lua菜鸟教程](http://www.runoob.com/lua/lua-basic-syntax.html)
 ### 写在前面
 作为解释性语言，Lua和C#有着许多的不同。不过如果是有编程基础的同学，Lua学习并不是一件难事。
+
+当前页面讲解的是基础的语法和使用逻辑。
 ### 定义变量
 Lua不像C#一样，需要通过int、float、string，bool这种方式来进行变量的定义。
 ```
@@ -363,6 +365,45 @@ local GameObject = CS.UnityEngine.GameObject
 GameObject.Find('helloworld')
 ```
 
+#### 访问C#成员属性，方法
+如果是正常读写某条成员属性，可以直接按照C#的方式来进行读写
+```
+testobj.DMF
 
+testobj.DMF = 1024
+
+```
+
+如果是读取成员方法，则需要将操作的参数传入，或者用“：”来代替“.”
+```
+local camera = CS.UnityEngine.GameObject.Find("Main Camera")
+local cameraCom = camera:GetComponent("Camera")
+--local cameraCom = camera.GetComponent(camera,"Camera")
+CS.UnityEngine.GameObject.Destroy(cameraCom)
+```
+
+#### 参数的输入输出属性（out，ref）
+Lua调用测的参数处理规则：C#的普通参数算一个输入形参，ref修饰的算一个输入形参，out不算，然后从左往右对应lua 调用测的实参列表；
+
+Lua调用测的返回值处理规则：C#函数的返回值（如果有的话）算一个返回值，out算一个返回值，ref算一个返回值，然后从左往右对应lua的多返回值。
+
+我们以Lua，C#的对应函数为例
+
+```
+--Lua
+function func(a,b,c)
+	...
+	return x,c,d
+end
+```
+
+```
+//C#
+int Func(string a, bool b, ref float c, out int d)
+{
+	...
+	return x;
+}
+```
 
 
